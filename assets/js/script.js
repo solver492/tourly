@@ -349,3 +349,75 @@ window.addEventListener("scroll", function () {
     initSearch();
   }
 })();
+
+
+/**
+ * App install popup
+ * - S'affiche 3 secondes après l'arrivée sur la page
+ * - Ne réapparaît pas avant 7 jours (localStorage)
+ * - Fermeture par : × / "Plus tard" / clic hors popup
+ */
+(function () {
+  var STORAGE_KEY = 'manasik_app_popup_dismissed';
+  var DELAY_MS    = 3000;   // délai avant affichage (ms)
+  var COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
+
+  function isDismissed() {
+    try {
+      var ts = localStorage.getItem(STORAGE_KEY);
+      if (!ts) return false;
+      return (Date.now() - parseInt(ts, 10)) < COOLDOWN_MS;
+    } catch (_) { return false; }
+  }
+
+  function dismiss() {
+    try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch (_) {}
+    var popup = document.getElementById('app-popup');
+    if (popup) {
+      popup.style.opacity = '0';
+      popup.style.transition = 'opacity 0.25s';
+      setTimeout(function () { popup.style.display = 'none'; }, 250);
+    }
+    document.body.style.overflow = '';
+  }
+
+  function showPopup() {
+    var popup = document.getElementById('app-popup');
+    if (!popup) return;
+    popup.style.display = 'flex';
+    document.body.style.overflow = 'hidden'; // bloque le scroll derrière
+
+    // Fermeture × 
+    var closeBtn = document.getElementById('app-popup-close');
+    if (closeBtn) closeBtn.addEventListener('click', dismiss);
+
+    // Bouton "Plus tard"
+    var laterBtn = document.getElementById('app-popup-later');
+    if (laterBtn) laterBtn.addEventListener('click', dismiss);
+
+    // Clic sur le fond sombre
+    popup.addEventListener('click', function (e) {
+      if (e.target === popup) dismiss();
+    });
+
+    // Touche Échap
+    document.addEventListener('keydown', function onEsc(e) {
+      if (e.key === 'Escape') { dismiss(); document.removeEventListener('keydown', onEsc); }
+    });
+
+    // Bouton téléchargement → ferme aussi la popup
+    var dlBtn = document.getElementById('app-popup-btn');
+    if (dlBtn) dlBtn.addEventListener('click', dismiss);
+  }
+
+  function init() {
+    if (isDismissed()) return;
+    setTimeout(showPopup, DELAY_MS);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
