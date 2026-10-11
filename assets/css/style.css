@@ -119,9 +119,13 @@ ion-icon { pointer-events: none; }
 html {
   font-family: var(--ff-poppins);
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
-body { background: var(--white); }
+body {
+  background: var(--white);
+  overflow-x: hidden;
+}
 
 
 
@@ -4756,3 +4760,77 @@ html, body {
 
 [data-theme="dark"] .app-popup-later { color: hsl(220, 10%, 50%); }
 [data-theme="dark"] .app-popup-later:hover { color: hsl(220, 10%, 75%); }
+
+
+/* ============================================
+   DESKTOP FIXES & LARGE SCREEN OPTIMIZATIONS
+   ============================================ */
+
+/* Cap container on very large screens (>1400px) to avoid content stretching */
+@media (min-width: 1400px) {
+  .container,
+  .container-narrow {
+    max-width: 1320px;
+  }
+}
+
+/* Hero: better height on desktop, title font-size cap */
+@media (min-width: 992px) {
+  .hero {
+    min-height: 700px;
+    padding-top: 140px;
+    padding-bottom: 80px;
+  }
+
+  .hero-title {
+    font-size: clamp(32px, 4vw, 56px);
+  }
+
+  .hero-text {
+    font-size: var(--fs-4);
+    max-width: 60ch;
+    margin-inline: auto;
+  }
+}
+
+/* Tour search form: better spacing on desktop */
+@media (min-width: 992px) {
+  .tour-search-form {
+    gap: 16px;
+    align-items: flex-end;
+  }
+
+  .tour-search-form .input-wrapper {
+    margin-bottom: 0;
+  }
+}
+
+/* Services grid: max 3 cols, centered on desktop */
+@media (min-width: 1200px) {
+  .services-grid {
+    max-width: 1100px;
+    margin-inline: auto;
+  }
+}
+
+/* Popular cards: consistent height on desktop */
+@media (min-width: 992px) {
+  .popular-card {
+    height: 480px;
+  }
+}
+
+/* Footer desktop: better spacing */
+@media (min-width: 1200px) {
+  .footer-top .container {
+    gap: 60px;
+  }
+}
+
+/* App popup: slightly larger on big screens */
+@media (min-width: 1024px) {
+  .app-popup-inner {
+    max-width: 460px;
+    padding: 40px 32px 32px;
+  }
+}
