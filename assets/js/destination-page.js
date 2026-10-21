@@ -20,6 +20,8 @@
  */
 
 import { DESTINATIONS_CONFIG } from './destinations.config.js';
+import { getVirtualTours } from './destinations.360tr.js';
+import { getStreetviewTours } from './destinations.streetview.js';
 import { getBySlug, getSimilar } from './search.js';
 import { services as SERVICES_CONFIG } from './services.config.js';
 
@@ -129,9 +131,20 @@ function renderBreadcrumb(dest) {
     </nav>`;
 }
 
+function getToursFor(dest) {
+  const tours = getVirtualTours(dest.slug).slice();
+  // Complète avec les visites immersives Mapillary/Panoramax (réseau plus large).
+  tours.push(...getStreetviewTours(dest.slug));
+  if (!tours.length && dest.virtualTourUrl) {
+    tours.push({ title: `Visite virtuelle — ${dest.name}`, url: dest.virtualTourUrl });
+  }
+  return tours;
+}
+
 function renderHero(dest) {
   const imgPath = dest.image || `assets/images/destinations/${dest.slug}.jpg`;
   const isHajj  = (dest.tags || []).includes('omra-hajj');
+  const tours   = getToursFor(dest);
   return `
     <section class="dpage-hero" aria-label="Hero ${esc(dest.name)}">
       <div class="dpage-hero-bg" style="background-image:url('${esc(imgPath)}')"></div>
@@ -141,6 +154,7 @@ function renderHero(dest) {
         <h1 class="dpage-hero-title">${esc(dest.name)}</h1>
         <p class="dpage-hero-tagline">${esc(dest.tagline || '')}</p>
         <div class="btn-group">
+          ${tours.length ? `<button type="button" class="btn btn-tour" data-tour-dest="${esc(dest.slug)}"><ion-icon name="navigate-outline" aria-hidden="true"></ion-icon>Visite virtuelle${tours.length > 1 ? ` (${tours.length})` : ''}</button>` : ''}
           <a href="index.html#contact" class="btn btn-secondary">Demander un devis</a>
           <a href="index.html#package" class="btn btn-primary">Voir les forfaits</a>
         </div>
@@ -202,6 +216,135 @@ function renderIntro(dest) {
         </div>
       </div>
     </section>`;
+}
+
+function renderGallery(dest) {
+  const imgs = (dest.images && dest.images.length)
+    ? dest.images
+    : [dest.image || `assets/images/destinations/${dest.slug}.jpg`];
+  const unique = [...new Set(imgs)].slice(0, 4);
+  if (unique.length < 2) return '';
+  const items = unique.map((src, i) => `
+    <button type="button" class="dpage-gallery-item" data-gallery-src="${esc(src)}"
+            aria-label="Agrandir la photo ${i + 1} de ${esc(dest.name)}">
+      <img src="${esc(src)}" alt="${esc(dest.name)} — photo ${i + 1}" loading="lazy"
+           onerror="this.closest('.dpage-gallery-item').style.display='none'"/>
+    </button>`).join('');
+  return `
+    <section class="dpage-section dpage-gallery-section">
+      <div class="container">
+        <p class="dpage-section-subtitle">En images</p>
+        <h2 class="dpage-section-title">Galerie — ${esc(dest.name)}</h2>
+        <div class="dpage-gallery-grid">${items}</div>
+      </div>
+    </section>`;
+}
+
+function openLightbox(src, name) {
+  let box = document.getElementById('dpage-lightbox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'dpage-lightbox';
+    box.className = 'dpage-lightbox';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.innerHTML = `
+      <button type="button" class="dpage-lightbox-close" aria-label="Fermer">&#x2715;</button>
+      <img class="dpage-lightbox-img" src="" alt=""/>`;
+    document.body.appendChild(box);
+    const close = () => { box.classList.remove('open'); document.body.style.overflow = ''; };
+    box.querySelector('.dpage-lightbox-close').addEventListener('click', close);
+    box.addEventListener('click', (e) => { if (e.target === box) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  }
+  const img = box.querySelector('.dpage-lightbox-img');
+  img.src = src;
+  img.alt = name || '';
+  box.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function creditFor(url) {
+  if (url.includes('mapillary.com')) {
+    return 'Vue de rue fournie par <a href="https://www.mapillary.com" target="_blank" rel="noopener">Mapillary</a>';
+  }
+  if (url.includes('panoramax')) {
+    return 'Vue panoramique fournie par <a href="https://panoramax.fr" target="_blank" rel="noopener">Panoramax</a>';
+  }
+  if (url.includes('360tr.com') || url.includes('360riyadh.com')) {
+    return 'Tours 360° provided by <a href="https://www.360tr.com" target="_blank" rel="noopener">360TR.com</a>';
+  }
+  return '';
+}
+
+function openVirtualTour(dest) {
+  const tours = getToursFor(dest);
+  if (!tours.length) return;
+
+  let box = document.getElementById('dpage-tour');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'dpage-tour';
+    box.className = 'dpage-tour';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', 'Visite virtuelle');
+    box.innerHTML = `
+      <div class="dpage-tour-bar">
+        <span class="dpage-tour-title">Visite virtuelle</span>
+        <button type="button" class="dpage-tour-close" aria-label="Fermer la visite virtuelle">&#x2715;</button>
+      </div>
+      <div class="dpage-tour-picker" role="tablist" aria-label="Choisir une visite"></div>
+      <div class="dpage-tour-shell">
+        <iframe class="dpage-tour-frame" title="Visite virtuelle"
+                allow="fullscreen; accelerometer; gyroscope; camera; xr-spatial-tracking"
+                allowfullscreen></iframe>
+      </div>
+      <div class="dpage-tour-credit"></div>`;
+    document.body.appendChild(box);
+    const close = () => {
+      box.classList.remove('open');
+      document.body.style.overflow = '';
+      box.querySelector('.dpage-tour-frame').src = 'about:blank';
+    };
+    box.querySelector('.dpage-tour-close').addEventListener('click', close);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && box.classList.contains('open')) close();
+    });
+  }
+
+  const title = box.querySelector('.dpage-tour-title');
+  title.textContent = `Visite virtuelle — ${dest.name}`;
+
+  // Sélecteur de tours (masqué s'il n'y en a qu'un)
+  const picker = box.querySelector('.dpage-tour-picker');
+  picker.innerHTML = '';
+  picker.style.display = tours.length > 1 ? '' : 'none';
+  const frame = box.querySelector('.dpage-tour-frame');
+
+  const select = (i) => {
+    picker.querySelectorAll('.dpage-tour-chip').forEach((c, j) => {
+      c.classList.toggle('active', j === i);
+      c.setAttribute('aria-selected', j === i ? 'true' : 'false');
+    });
+    frame.src = tours[i].url;
+    const credit = box.querySelector('.dpage-tour-credit');
+    if (credit) credit.innerHTML = creditFor(tours[i].url);
+  };
+
+  tours.forEach((t, i) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'dpage-tour-chip';
+    chip.setAttribute('role', 'tab');
+    chip.textContent = t.title;
+    chip.addEventListener('click', () => select(i));
+    picker.appendChild(chip);
+  });
+
+  select(0);
+  box.classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
 
 function renderHighlights(dest) {
@@ -375,6 +518,7 @@ function renderPage(dest) {
     renderBreadcrumb(dest) +
     renderHero(dest) +
     renderIntro(dest) +
+    renderGallery(dest) +
     renderHighlights(dest) +
     renderTips(dest) +
     renderServices(dest) +
@@ -399,6 +543,16 @@ function renderPage(dest) {
         btn.setAttribute('aria-expanded', 'true');
       }
     });
+  });
+
+  // ── Galerie : lightbox ───────────────────────────────────────────────────
+  root.querySelectorAll('.dpage-gallery-item').forEach(btn => {
+    btn.addEventListener('click', () => openLightbox(btn.dataset.gallerySrc, dest.name));
+  });
+
+  // ── Visite virtuelle 360° : ouverture plein écran ────────────────────────
+  root.querySelectorAll('.dpage-tour-btn, [data-tour-dest]').forEach(btn => {
+    btn.addEventListener('click', () => openVirtualTour(dest));
   });
 }
 
